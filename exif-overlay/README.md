@@ -76,10 +76,12 @@ The icon folder name is fixed: the template looks for the images at `Templates:E
 | Icon Size | 1 | Icon size relative to the text. |
 | Stagger (s) | 0.12 | Delay between rows during the reveal. |
 | Reveal Duration (s) | 0.55 | How long each row takes to animate in. The outro is a bit faster. |
+| Start Delay (s) | 0 | Seconds after the clip starts before the intro begins. |
+| Visible For (s) | 0 | Seconds from the start of the intro until the outro ends. 0 means until the end of the clip. |
 | Shadow Strength | 0.75 | Opacity of the drop shadow. |
 | Shadow Softness | 4 | Blur of the drop shadow. |
 
-For now the values are typed by hand. A script that reads the EXIF data from each photo and fills them in is planned (see [Roadmap](#roadmap)).
+The values are typed by hand here. The [Add Photos](../photo-frame/) script fills them in automatically from each photo's EXIF data.
 
 ## How it works
 
@@ -99,9 +101,9 @@ Controls (transparent Background, holds the custom controls)
 - **Text:** one Text+ per row, left-aligned, with its color linked to the Text Color control.
 - **Icons:** each icon image is loaded with a Loader and tinted with a ColorGain node linked to the Icon Color control. The Loaders are set to hold their single frame for the whole clip, so the icon appears on every frame. The icon size is multiplied by `frame width / 1920`, so icons keep the same size relative to the text at 1080p, 4K or any other resolution.
 - **Animation:** there are no keyframes. Each row's Merge nodes use Lua expressions that work out the animation progress from the current frame:
-  - `t = (time - comp.GlobalStart) / fps` is the time since the clip started, in seconds.
+  - `t = (time - comp.GlobalStart) / fps - Start Delay` is the time since the overlay started, in seconds.
   - Intro progress for row *i* starts at `0.1 + i × Stagger` and runs for `Reveal Duration`, eased with an ease-out cubic curve.
-  - Outro progress counts back from `comp.GlobalEnd` with the row order reversed.
+  - Outro progress counts back from `Start Delay + Visible For` (or from `comp.GlobalEnd` when Visible For is 0) with the row order reversed.
   - Text slides in with an offset on its Merge's `Center`. The icon uses a back-ease (overshoot) on the Merge's `Size` plus a small rotation.
   - The intro and outro values are multiplied together to drive each Merge's `Blend` (opacity).
   - The clip's global range is used instead of the render range on purpose, because the render range changes when Resolve renders single frames.
@@ -146,10 +148,6 @@ mkdir -p ~/tmp/lucide-deps && npm install --prefix ~/tmp/lucide-deps lucide-stat
 ```bash
 node render_icons.js ~/tmp/lucide-deps icons
 ```
-
-## Roadmap
-
-- **EXIF fill script:** a Resolve script that goes through every still on the timeline, reads its EXIF data with [`exiftool`](https://exiftool.org), formats it (for example `1/250s`, `f/2.8`, `ISO 400`, `35mm`), and fills in the EXIF Overlay title above each photo. It could also add the titles automatically.
 
 ## Credits
 

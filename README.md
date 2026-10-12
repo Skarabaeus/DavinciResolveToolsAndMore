@@ -7,6 +7,7 @@ A collection of templates, scripts and other tools for DaVinci Resolve. Each too
 | Tool | Type | Description |
 |---|---|---|
 | [EXIF Overlay](exif-overlay/) | Fusion Title template | Animated overlay that shows a photo's camera, lens, focal length, ISO, shutter speed and aperture, each with an icon and a staggered reveal. |
+| [Photo Frame](photo-frame/) | Fusion Effect template + script | Frames a photo with a border, shadow and gradient background. The Add Photos script puts selected photos on the timeline with the frame, a filled-in EXIF Overlay and a camera sound. |
 
 ## Requirements
 

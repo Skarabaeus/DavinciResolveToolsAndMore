@@ -29,7 +29,9 @@ def anim(i):
     return (
         ":local r=comp:GetPrefs('Comp.FrameFormat.Rate') "
         "local s=Controls.Stagger local d=Controls.Duration "
-        f"local t=(time-comp.GlobalStart)/r local te=(comp.GlobalEnd+1-time)/r "
+        "local t0=(time-comp.GlobalStart)/r local w=Controls.Delay "
+        "local L=(Controls.Length>0) and (w+Controls.Length) or (comp.GlobalEnd+1-comp.GlobalStart)/r "
+        "local t=t0-w local te=L-t0 "
         f"local p=math.max(0,math.min(1,(t-0.1-{i}*s)/d)) "
         f"local q=math.max(0,math.min(1,(te-0.05-{N - 1 - i}*s*0.6)/(d*0.7))) "
         "local ei=1-(1-p)^3 local eo=1-(1-q)^3 local a=ei*eo "
@@ -75,6 +77,8 @@ tool("Controls", """Background {
 \t\t\t\t\t\tIconGreen = Input { Value = 0.784, },
 \t\t\t\t\t\tIconBlue = Input { Value = 0.341, },
 \t\t\t\t\t\tIconSize = Input { Value = 1, },
+\t\t\t\t\t\tDelay = Input { Value = 0, },
+\t\t\t\t\t\tLength = Input { Value = 0, },
 \t\t\t\t\t},
 \t\t\t\t\tViewInfo = OperatorInfo { Pos = __POS__ },
 \t\t\t\t\tUserControls = ordered() {
@@ -87,6 +91,8 @@ tool("Controls", """Background {
 \t\t\t\t\t\tIconGreen = { LINKID_DataType = "Number", INPID_InputControl = "ColorControl", INP_Default = 0.784, INP_MinScale = 0, INP_MaxScale = 1, IC_ControlGroup = 2, IC_ControlID = 1, ICS_ControlPage = "Controls", },
 \t\t\t\t\t\tIconBlue = { LINKID_DataType = "Number", INPID_InputControl = "ColorControl", INP_Default = 0.341, INP_MinScale = 0, INP_MaxScale = 1, IC_ControlGroup = 2, IC_ControlID = 2, ICS_ControlPage = "Controls", },
 \t\t\t\t\t\tIconSize = { LINKS_Name = "Icon Size", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1, INP_MinScale = 0.25, INP_MaxScale = 2, INP_MinAllowed = 0, ICS_ControlPage = "Controls", },
+\t\t\t\t\t\tDelay = { LINKS_Name = "Start Delay (s)", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 10, INP_MinAllowed = 0, ICS_ControlPage = "Controls", },
+\t\t\t\t\t\tLength = { LINKS_Name = "Visible For (s)", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 20, INP_MinAllowed = 0, ICS_ControlPage = "Controls", },
 \t\t\t\t\t},
 \t\t\t\t}""")
 
@@ -251,6 +257,8 @@ inst("Controls", "IconBlue", None, ", ControlGroup = 21, Default = 0.341")
 inst("Controls", "IconSize", "Icon Size", ", Default = 1")
 inst("Controls", "Stagger", "Stagger (s)", ", Default = 0.12")
 inst("Controls", "Duration", "Reveal Duration (s)", ", Default = 0.55")
+inst("Controls", "Delay", "Start Delay (s)", ", Default = 0")
+inst("Controls", "Length", "Visible For (s)", ", Default = 0")
 inst("ShadowTint", "GainAlpha", "Shadow Strength", ", Default = 0.75")
 inst("ShadowBlur", "XBlurSize", "Shadow Softness", ", Default = 4")
 
