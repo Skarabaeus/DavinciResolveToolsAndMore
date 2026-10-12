@@ -34,6 +34,8 @@ The script never overwrites anything. If V2 isn't free for the whole length of t
 
 The script also leaves a Fusion clip named `Photo Stack - <first photo> (<n> photos)` in the Media Pool. The timeline clip is made from it, so keep it.
 
+Photos larger than the timeline frame are not loaded at full size. The script writes copies scaled down to fit the frame into a folder next to the originals, named after the timeline resolution (for example `Photo Stack 3840x2160/`), and the stack loads those. Keep that folder with the photos. Copies are reused on later runs and rewritten when the original is newer. If the first photo was scaled, its copy is also imported into the current Media Pool bin, because the Fusion clip is built from it.
+
 ### Changing the stack afterwards
 
 Everything lives in the clip's Fusion composition. Select the clip, open the **Fusion** page, and select the **Controls** node:
@@ -52,7 +54,7 @@ Everything lives in the clip's Fusion composition. Select the clip, open the **F
 | Shadow Strength, Softness, Distance | 0.85, 30, 0.006 | Same as Photo Frame. |
 | Color tab | grays | The four corner colors of the gradient background. |
 
-The tilt, offset and slide direction of each photo are fixed numbers inside the expressions on its `Stack<n>` node (`Center` and `Angle`), and Max Tilt and Scatter scale them. To swap a photo, change the file name on its `Load<n>` node.
+The tilt, offset and slide direction of each photo are fixed numbers inside the expressions on its `Stack<n>` node (`Center` and `Angle`), and Max Tilt and Scatter scale them. To swap a photo, change the file name on its `Load<n>` node. Use a file no larger than the frame (see the scaled copies above).
 
 ### Script settings
 
@@ -69,7 +71,8 @@ These are at the top of `Photo Stack.py` and become the defaults of the controls
 ## How it works
 
 - **Host clip:** the scripting API can't set how long a still is on the timeline, because Resolve always uses the *Standard still duration* preference. A Fusion clip, though, can be placed at any length. The script creates a temporary timeline and fills it with copies of the first photo until it is long enough. It turns those into a Fusion clip and deletes the temporary timeline. It then places the Fusion clip on the real timeline cut to the exact length and loads the stack composition onto it with `TimelineItem.ImportFusionComp`. The composition ignores the clip's own image.
-- **Composition:** the script writes the composition at runtime because the number of photos varies. For each photo it builds `Load<n>` (a Loader with the photo file), a border card, a padded transparent canvas with a blurred, darkened copy of the card as the shadow, and the photo merged onto the card. A `Hold<n>` node (TimeSpeed with speed 0) freezes that branch at one frame. The full-resolution photo is therefore decoded and downscaled once rather than on every frame.
+- **Composition:** the script writes the composition at runtime because the number of photos varies. For each photo it builds `Load<n>` (a Loader with the photo file), a border card, a padded transparent canvas with a blurred, darkened copy of the card as the shadow, and the photo merged onto the card. A `Hold<n>` node (TimeSpeed with speed 0) freezes that branch at one frame, so the photo is decoded and downscaled once rather than on every frame.
+- **Scaled copies:** a stack of 15 camera files of up to 45 MP crashed Resolve inside Fusion. Photos larger than the frame are therefore scaled down with macOS `sips` first (JPEG, PNG and TIFF; other formats are loaded as they are).
 - **Animation:** each `Stack<n>` Merge places the framed photo on the stack so far. Its `Center`, `Angle` and `Blend` are Lua expressions of `time` and the Controls values, with an ease-out cubic slide and no keyframes. Photo *n* starts at *n* × Seconds per Photo after the clip's first frame. The comp's global range is the whole Fusion clip, not the cut length, so it can't be used to fit the timing to the clip length.
 - **Speed:** in testing, a UHD render with 6 photos ran at about 19 fps.
 - **Supported files:** the photos are read by Fusion Loaders, which were tested with JPEG. Loaders can't read RAW files, so export those to JPEG first.

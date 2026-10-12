@@ -7,9 +7,11 @@ on one clip; the timing has no keyframes and is set on the comp's Controls node.
 Install into ~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/
 and run it from Workspace > Scripts on the Edit page.
 """
+import math
 import os
 import random
 import re
+import subprocess
 import tempfile
 
 # --- Settings ---------------------------------------------------------------------------------
@@ -34,6 +36,9 @@ GRADIENT = {               # four-corner gradient behind the photos
     "BottomRight": (0.129, 0.129, 0.129),
 }
 SHADOW_STRENGTH, SHADOW_SOFTNESS, SHADOW_DISTANCE = 0.85, 30, 0.006
+# Photos larger than the frame are loaded from copies scaled down to fit it, kept in a folder next to
+# the originals: a stack of full-size camera files crashed Resolve.
+COPY_FOLDER = "Photo Stack {width}x{height}"
 # -----------------------------------------------------------------------------------------------
 
 try:
@@ -87,6 +92,33 @@ def frame_to_tc(frame, fps, drop):
         frame += drop * 9 * tens + (drop * ((rest - drop) // (n * 60 - drop)) if rest > drop else 0)
     sep = ";" if drop else ":"
     return "%02d:%02d:%02d%s%02d" % (frame // (n * 3600), frame // (n * 60) % 60, frame // n % 60, sep, frame % n)
+
+
+def fitted_copy(path, width, height):
+    """Return a copy of the photo scaled down to fit width x height, or the photo itself if it already fits.
+
+    The copy goes into a folder next to the photo and is reused while it is newer than the photo.
+    """
+    fmt = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".tif": "tiff", ".tiff": "tiff"}.get(os.path.splitext(path)[1].lower())
+    if not fmt:
+        return path
+    out = os.path.join(os.path.dirname(path), COPY_FOLDER.format(width=width, height=height), os.path.basename(path))
+    try:
+        if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
+            return out
+        info = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", path],
+                              capture_output=True, text=True, check=True).stdout
+        w, h = (int(re.search(rf"{k}: (\d+)", info).group(1)) for k in ("pixelWidth", "pixelHeight"))
+        scale = min(width / w, height / h)
+        if scale >= 1:
+            return path
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        quality = ["-s", "formatOptions", "best"] if fmt == "jpeg" else []
+        subprocess.run(["sips", "-s", "format", fmt, *quality, "-Z", str(math.ceil(max(w, h) * scale)), path, "--out", out],
+                       capture_output=True, check=True)
+        return out
+    except (OSError, subprocess.CalledProcessError, AttributeError):
+        return path
 
 
 # --- Composition ----------------------------------------------------------------------------------
@@ -341,6 +373,18 @@ def occupied(tl, track, start, end):
     return any(item.GetStart() < end and item.GetEnd() > start for item in tl.GetItemListInTrack("video", track) or [])
 
 
+def find_clip(folder, path):
+    """Return the Media Pool item for the file at `path` in `folder` or its subfolders, or None."""
+    for clip in folder.GetClipList() or []:
+        if clip.GetClipProperty("File Path") == path:
+            return clip
+    for sub in folder.GetSubFolderList() or []:
+        clip = find_clip(sub, path)
+        if clip:
+            return clip
+    return None
+
+
 def make_host_clip(project, mp, still, frames, name):
     """Return a Media Pool Fusion clip at least `frames` long.
 
@@ -387,7 +431,6 @@ def main():
     if len(photos) > MAX_PHOTOS:
         return message(f"{len(photos)} photos are selected. A stack takes at most {MAX_PHOTOS}.")
     photos.sort(key=lambda c: c.GetName())
-    paths = [c.GetClipProperty("File Path") for c in photos]
 
     fps = float(tl.GetSetting("timelineFrameRate"))
     width, height = int(tl.GetSetting("timelineResolutionWidth")), int(tl.GetSetting("timelineResolutionHeight"))
@@ -400,7 +443,12 @@ def main():
     if occupied(tl, VIDEO_TRACK, pos, pos + frames):
         return message(f"Track V{VIDEO_TRACK} needs {frames / fps:.1f} s of free space at the playhead.")
 
-    host = make_host_clip(project, mp, photos[0], frames, f"Photo Stack - {photos[0].GetName()} ({len(photos)} photos)")
+    paths = [fitted_copy(c.GetClipProperty("File Path"), width, height) for c in photos]
+    # build the host clip from the small copy too; the full-size photo makes it as heavy as the stack was
+    still = photos[0]
+    if paths[0] != photos[0].GetClipProperty("File Path"):
+        still = find_clip(mp.GetRootFolder(), paths[0]) or (mp.ImportMedia([paths[0]]) or [still])[0]
+    host = make_host_clip(project, mp, still, frames, f"Photo Stack - {photos[0].GetName()} ({len(photos)} photos)")
     if not host:
         return message("Could not create the clip for the stack.")
     item = mp.AppendToTimeline([{"mediaPoolItem": host, "trackIndex": VIDEO_TRACK, "mediaType": 1,
