@@ -56,3 +56,16 @@ R="$HOME/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion"; 
 - `Add Photos.py` assembles a clip comp at runtime from the *installed* `Photo Frame.setting` and `EXIF Overlay.setting` (text extraction of the MacroOperator blocks), so inner tool names must stay unique across both macros (photo-frame uses `Frame`, `PhotoIn`, `Card`, `FrameShadow*`, `MergePhoto`; exif-overlay uses `Controls`, `Layout`, `DropShadow`, ...). It also string-replaces the overlay's `UseFrameFormatSettings`/`Width = 1920`/`Height = 1080` lines and the frame's `3840`/`2160` canvas lines; keep those literals in sync with the generators.
 - Clip Fusion comps run at the clip's source resolution, and Resolve fits the comp output into the timeline. That's why the frame has its own canvas size.
 - Scripting API findings (Resolve 21.1.1): `TimelineItem.AddFusionComp()` plus scripted edits did not render; `ImportFusionComp(path)` plus scripted edits does. `InsertFusionTitleIntoTimeline` ripple-inserts on the destination track (not settable by scripts). `AppendToTimeline` ignores start/end frames for stills (it uses the Standard still duration preference) and never overwrites; it moves or shortens the new clip instead. `ExportCurrentFrameAsStill` ignores Fusion comps; verify by rendering a single frame from the Deliver page instead.
+
+## photo-stack
+
+A hand-written Resolve script (`Photo Stack.py`) that writes a Fusion comp at runtime (one Loader → card/shadow → `TimeSpeed` freeze → `Merge` chain per photo, timing in Lua expressions on `Stack<n>` reading the `Controls` node).
+
+```bash
+# Install into Resolve (macOS)
+R="$HOME/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion"; mkdir -p "$R/Scripts/Edit" && cp "Photo Stack.py" "$R/Scripts/Edit/"
+```
+
+- Host clip trick: stills can't be given a length by scripts, so the script builds a Fusion clip (`Timeline.CreateFusionClip`) on a temporary timeline, deletes that timeline, and appends the Fusion clip's Media Pool item with `startFrame`/`endFrame` (honored for Fusion clips; `endFrame` is exclusive). `TimelineItem.GetFusionCompCount()` is 0 for a fresh Fusion clip and its inner comp isn't scriptable; `ImportFusionComp` adds a comp on top.
+- In that comp `comp.GlobalEnd` is the full Fusion clip length, not the cut length, so timing is absolute (seconds from the clip start).
+- Timelines may use drop-frame timecode (`;`). `tc_to_frame`/`frame_to_tc` in `Photo Stack.py` handle it (same helpers in `Add Photos.py`).

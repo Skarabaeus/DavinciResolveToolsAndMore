@@ -63,14 +63,25 @@ def message(text):
     win.Hide()
 
 
+def drop_frames(tc, fps):
+    """Frame numbers skipped per minute in drop-frame timecode (shown with ';'), else 0."""
+    return round(fps) // 15 if ";" in tc and round(fps) != fps else 0
+
+
 def tc_to_frame(tc, fps):
     h, m, s, f = (int(x) for x in re.split("[:;.]", tc))
-    return ((h * 60 + m) * 60 + s) * round(fps) + f
+    minutes = h * 60 + m
+    return ((h * 60 + m) * 60 + s) * round(fps) + f - drop_frames(tc, fps) * (minutes - minutes // 10)
 
 
-def frame_to_tc(frame, fps):
+def frame_to_tc(frame, fps, drop):
     n = round(fps)
-    return "%02d:%02d:%02d:%02d" % (frame // (n * 3600), frame // (n * 60) % 60, frame // n % 60, frame % n)
+    if drop:
+        per_10min = n * 600 - drop * 9
+        tens, rest = divmod(frame, per_10min)
+        frame += drop * 9 * tens + (drop * ((rest - drop) // (n * 60 - drop)) if rest > drop else 0)
+    sep = ";" if drop else ":"
+    return "%02d:%02d:%02d%s%02d" % (frame // (n * 3600), frame // (n * 60) % 60, frame // n % 60, sep, frame % n)
 
 
 # --- EXIF formatting ----------------------------------------------------------------------------
@@ -233,7 +244,8 @@ def main():
     fps = float(tl.GetSetting("timelineFrameRate"))
     width, height = int(tl.GetSetting("timelineResolutionWidth")), int(tl.GetSetting("timelineResolutionHeight"))
     comp_path = build_comp(width, height)
-    pos = tc_to_frame(tl.GetCurrentTimecode(), fps)
+    tc = tl.GetCurrentTimecode()
+    pos = tc_to_frame(tc, fps)
     added = 0
 
     for mpi in photos:
@@ -258,7 +270,7 @@ def main():
         pos = end
         added += 1
 
-    tl.SetCurrentTimecode(frame_to_tc(pos, fps))
+    tl.SetCurrentTimecode(frame_to_tc(pos, fps, drop_frames(tc, fps)))
     if added < len(photos):
         message(f"Added {added} of {len(photos)} photos. Track V{VIDEO_TRACK} is not free at the playhead "
                 f"for the rest; make room and run the script again with the remaining photos selected.")
