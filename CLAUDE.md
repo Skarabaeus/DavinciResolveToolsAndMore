@@ -1,0 +1,42 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository layout
+
+A collection of independent DaVinci Resolve tools (Fusion templates, scripts, LUTs). Each tool lives in its own top-level folder (lowercase, dash-separated) with its own `README.md`. When adding a tool, also add a row to the Tools table in the root `README.md`. Target environment: DaVinci Resolve Studio 21.1.1 on macOS. There is no build system, test suite or linter; there are no dependencies at the repo level.
+
+## exif-overlay
+
+A Fusion Title template (`EXIF Overlay.setting`) showing camera/lens/focal/ISO/shutter/aperture rows with icons and a staggered reveal.
+
+### Commands
+
+```bash
+# Regenerate the template (run from exif-overlay/). Never hand-edit the .setting file — it is generated.
+python3 build_template.py "EXIF Overlay.setting"
+
+# Install into Resolve (macOS)
+T="$HOME/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Templates/Edit/Titles"; mkdir -p "$T/EXIF Overlay Icons" && cp "EXIF Overlay.setting" "$T/" && cp icons/*.png "$T/EXIF Overlay Icons/"
+
+# Re-render icons (deps kept outside the repo; lucide-static 1.55.0 + sharp)
+mkdir -p ~/tmp/lucide-deps && npm install --prefix ~/tmp/lucide-deps lucide-static sharp
+node render_icons.js ~/tmp/lucide-deps icons
+```
+
+Resolve picks up template changes after a few seconds; otherwise restart it. The DaVinci Resolve MCP server can be used to launch Resolve and run scripts for verification.
+
+### Architecture (`build_template.py`)
+
+- The script emits a Fusion `MacroOperator` as text via string templates (tab-indented Lua-table syntax). Layout/style constants (`ROWS`, `X_ICON`, `X_TEXT`, `Y_BOTTOM`, `SPACING`, `ICON_SCALE`, `ICON_DIR`) are at the top.
+- **`Controls` node:** a fully transparent `Background` that is both the base of the image chain and the holder of all custom `UserControls` (colors, stagger, duration, icon size). Other nodes read them via expressions like `Controls.TextRed`. Published Inspector controls are `InstanceInput`s built with `inst()`; color controls use `ControlGroup` to group R/G/B.
+- **Per row:** `Text+` and a `Loader` (icon PNG) → `ColorGain` tint → two `Merge`s chained onto the previous row's output.
+- **Animation has no keyframes.** `anim(i)` produces a Lua expression prelude computing intro (`ei`), outro (`eo`) and alpha from `time`, `comp.GlobalStart`/`comp.GlobalEnd` and the comp frame rate, so timing is in seconds and follows clip length. Use the global range, not the render range (render range changes when Resolve renders single frames).
+- Icon size is multiplied by `frame width / 1920` to stay resolution-independent. Loaders hold their single frame for the whole clip (`ExtendLast`, large `GlobalEnd`).
+- Then `Layout` (Transform for Position/Scale) → custom `DropShadow` (blur + darkened ColorGain merged under the overlay). Resolve's built-in Shadow tool drew nothing, so don't switch back to it.
+
+### Gotchas
+
+- The `.setting` must sit directly in `Titles/`, not in a same-named subfolder — otherwise Resolve loads an empty comp (black screen).
+- Icons are loaded from the fixed path `Templates:Edit/Titles/EXIF Overlay Icons/` (`ICON_DIR`).
+- Icons must stay white 256×256 transparent PNGs; color comes from the ColorGain tint.
