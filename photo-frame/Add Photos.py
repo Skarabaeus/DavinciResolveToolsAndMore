@@ -128,7 +128,7 @@ def exif_rows(mpi):
 
 def macro_block(path):
     """Return the 'Name = MacroOperator { ... }' text from a generated .setting file."""
-    text = open(fusion.MapPath(path)).read()
+    text = open(fusion.MapPath(path), encoding="utf-8").read()
     start = text.index("Tools = ordered() {") + len("Tools = ordered() {")
     depth, i, in_str = 1, start, False
     while depth:
@@ -174,7 +174,7 @@ def build_comp(width, height):
         "\t},\n}\n"
     )
     path = os.path.join(tempfile.gettempdir(), "Photo Frame + EXIF.comp")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(comp)
     return path
 

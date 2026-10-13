@@ -107,8 +107,9 @@ def fitted_copy(path, width, height):
     try:
         if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
             return out
+        # sips echoes the path; decode it ourselves, Resolve's Python runs with an ASCII locale
         info = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", path],
-                              capture_output=True, text=True, check=True).stdout
+                              capture_output=True, check=True).stdout.decode("utf-8", "replace")
         w, h = (int(re.search(rf"{k}: (\d+)", info).group(1)) for k in ("pixelWidth", "pixelHeight"))
         scale = min(width / w, height / h)
         if scale >= 1:
@@ -371,7 +372,7 @@ def build_comp(paths, width, height):
         "\t},\n}\n"
     )
     path = os.path.join(tempfile.gettempdir(), "Photo Stack.comp")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(comp)
     return path
 
