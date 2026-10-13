@@ -16,7 +16,7 @@ import tempfile
 
 # --- Settings ---------------------------------------------------------------------------------
 VIDEO_TRACK = 2
-MAX_PHOTOS = 15
+MAX_PHOTOS = 20
 SECONDS_PER_PHOTO = 3.0    # time between two photos
 HOLD_SECONDS = 1.0         # extra time after the last photo's interval
 SLIDE_SECONDS = 0.8        # how long a photo takes to slide in
@@ -36,6 +36,7 @@ GRADIENT = {               # four-corner gradient behind the photos
     "BottomRight": (0.129, 0.129, 0.129),
 }
 SHADOW_STRENGTH, SHADOW_SOFTNESS, SHADOW_DISTANCE = 0.85, 30, 0.006
+HIDE_BELOW = 6             # stop drawing a photo once this many photos have landed on it; 0 = never
 # Photos larger than the frame are loaded from copies scaled down to fit it, kept in a folder next to
 # the originals: a stack of full-size camera files crashed Resolve.
 COPY_FOLDER = "Photo Stack {width}x{height}"
@@ -132,6 +133,11 @@ def slider(name, label, default, lo, hi, page="Controls"):
             f'INP_Default = {default}, INP_MinScale = {lo}, INP_MaxScale = {hi}, ICS_ControlPage = "{page}", }},\n')
 
 
+def int_slider(name, label, default, lo, hi, page="Controls"):
+    return (f'\t\t\t\t{name} = {{ LINKS_Name = "{label}", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", '
+            f'INP_Integer = true, INP_Default = {default}, INP_MinScale = {lo}, INP_MaxScale = {hi}, ICS_ControlPage = "{page}", }},\n')
+
+
 def checkbox(name, label, default, page="Controls"):
     return (f'\t\t\t\t{name} = {{ LINKS_Name = "{label}", LINKID_DataType = "Number", INPID_InputControl = "CheckboxControl", '
             f'INP_Integer = true, INP_Default = {default}, ICS_ControlPage = "{page}", }},\n')
@@ -152,7 +158,7 @@ def controls_tool(width, height):
         "SlideFirst": int(SLIDE_FIRST), "MaxTilt": MAX_TILT, "SpinIn": SPIN_IN, "Scatter": SCATTER,
         "PhotoSize": PHOTO_SIZE, "BorderWidth": BORDER_WIDTH, "BorderRed": BORDER_COLOR[0],
         "BorderGreen": BORDER_COLOR[1], "BorderBlue": BORDER_COLOR[2], "ShadowStrength": SHADOW_STRENGTH,
-        "ShadowSoftness": SHADOW_SOFTNESS, "ShadowDistance": SHADOW_DISTANCE,
+        "ShadowSoftness": SHADOW_SOFTNESS, "ShadowDistance": SHADOW_DISTANCE, "HideBelow": HIDE_BELOW,
     }
     inputs = "".join(f"\t\t\t\t{k} = Input {{ Value = {v}, }},\n" for k, v in values.items())
     inputs += "".join(f"\t\t\t\t{corner}{ch} = Input {{ Value = {v}, }},\n"
@@ -172,6 +178,7 @@ def controls_tool(width, height):
         + slider("ShadowStrength", "Shadow Strength", SHADOW_STRENGTH, 0, 1)
         + slider("ShadowSoftness", "Shadow Softness", SHADOW_SOFTNESS, 0, 100)
         + slider("ShadowDistance", "Shadow Distance", SHADOW_DISTANCE, 0, 0.05)
+        + int_slider("HideBelow", "Hide Covered After", HIDE_BELOW, 0, MAX_PHOTOS)
     )
     return f"""\t\tControls = Background {{
 \t\t\tCtrlWZoom = false,
@@ -190,8 +197,8 @@ def controls_tool(width, height):
 """
 
 
-def photo_tools(i, path, rnd, prev, direction):
-    """Tools for photo i: a static framed card (frozen in time so it is built once), merged onto `prev`."""
+def photo_tools(i, count, path, rnd, prev, direction):
+    """Tools for photo i of count: a static framed card (frozen in time so it is built once), merged onto `prev`."""
     x = 110 * (i + 1)
     load, card, pad, card_pad, blur, tint, shadow, card_shadow, photo, hold, stack = (
         f"{n}{i}" for n in ("Load", "Card", "Pad", "CardPad", "ShadowBlur", "ShadowTint", "Shadow", "CardShadow",
@@ -217,7 +224,9 @@ def photo_tools(i, path, rnd, prev, direction):
     center = prelude + (f"local k=(1-e)*Controls.SlideDistance "
                         f"return Point(0.5+{jx:.4f}*Controls.Scatter+{dx}*k, 0.5+{jy:.4f}*Controls.Scatter+{dy}*k)")
     angle = prelude + f"return {tilt:.4f}*Controls.MaxTilt+(1-e)*{spin}*Controls.SpinIn"
-    blend = prelude + "return (Controls.SlideDistance>0) and v or v*e"
+    # Hidden once the HideBelow-th photo above it has landed, so buried photos cost no compositing.
+    blend = prelude + (f"local h=Controls.HideBelow if h>0 and {i}+h<{count} and t>=({i}+h)*Controls.Interval+d then return 0 end "
+                       "return (Controls.SlideDistance>0) and v or v*e")
 
     return f"""\t\t{load} = Loader {{
 \t\t\tClips = {{
@@ -349,7 +358,7 @@ def build_comp(paths, width, height):
     body, prev, last_dir = "", "Controls", None
     for i, path in enumerate(paths):
         direction = rnd.choice([d for d in DIRECTIONS if d != last_dir] or list(DIRECTIONS))
-        body += photo_tools(i, path, rnd, prev, direction)
+        body += photo_tools(i, len(paths), path, rnd, prev, direction)
         prev, last_dir = f"Stack{i}", direction
     comp = (
         "Composition {\n\tTools = ordered() {\n"

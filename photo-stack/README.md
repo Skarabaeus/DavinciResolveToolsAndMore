@@ -1,6 +1,6 @@
 # Photo Stack for DaVinci Resolve
 
-A script that turns up to 15 photos into a stack. Each photo is shown smaller with a white border and a soft shadow. It is tilted a little and slides in from a random side on top of the photos before it, over a four-corner gradient.
+A script that turns up to 20 photos into a stack. Each photo is shown smaller with a white border and a soft shadow. It is tilted a little and slides in from a random side on top of the photos before it, over a four-corner gradient.
 
 Tested with DaVinci Resolve Studio 21.1.1 on macOS.
 
@@ -22,7 +22,7 @@ The script shows up in the **Workspace → Scripts** menu on the Edit page. If i
 
 ## Usage
 
-1. In the Media Pool, select up to 15 photos.
+1. In the Media Pool, select up to 20 photos.
 2. On the timeline, put the playhead where the stack should start.
 3. Run **Workspace → Scripts → Photo Stack**.
 
@@ -52,6 +52,7 @@ Everything lives in the clip's Fusion composition. Select the clip, open the **F
 | Photo Size | 0.78 | Size of a photo (without border) relative to the frame. |
 | Border Width, Border Color | 0.013, white | Border width relative to the frame height. |
 | Shadow Strength, Softness, Distance | 0.85, 30, 0.006 | Same as Photo Frame. |
+| Hide Covered After | 6 | A photo stops being drawn once this many photos have landed on top of it, which keeps large stacks fast. Raise it if a hidden photo visibly pops out, e.g. a landscape photo under only portrait ones or with a large Scatter. 0 never hides photos. |
 | Color tab | grays | The four corner colors of the gradient background. |
 
 The tilt, offset and slide direction of each photo are fixed numbers inside the expressions on its `Stack<n>` node (`Center` and `Angle`), and Max Tilt and Scatter scale them. To swap a photo, change the file name on its `Load<n>` node. Use a file no larger than the frame (see the scaled copies above).
@@ -63,7 +64,7 @@ These are at the top of `Photo Stack.py` and become the defaults of the controls
 | Setting | Default | Description |
 |---|---|---|
 | `VIDEO_TRACK` | 2 | Target track. Missing tracks are created. |
-| `MAX_PHOTOS` | 15 | Maximum number of selected photos. |
+| `MAX_PHOTOS` | 20 | Maximum number of selected photos. |
 | `SECONDS_PER_PHOTO`, `HOLD_SECONDS` | 3.0, 1.0 | Clip length = photos × seconds per photo + hold. |
 | `DIRECTIONS` | all four sides | Sides photos slide in from. They are picked at random, never the same side twice in a row. |
 | everything else | | Defaults of the Controls node (see above). |
